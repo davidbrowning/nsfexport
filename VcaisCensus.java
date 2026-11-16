@@ -6,6 +6,8 @@ import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
@@ -15,8 +17,8 @@ import java.util.Vector;
 /*
  * VCAIS census: a read-only diagnostic Java agent for the Notes client.
  *
- * It lists every database in the local Notes data directory, with its document
- * count and your access level. For databases whose file path or title contains
+ * It lists every database in the local Notes data directory, and in any
+ * EXTRA_FOLDERS, with its document count and your access level. For databases whose file path or title contains
  * MATCH, it also reports:
  *   - document counts by Form
  *   - document counts by status value (from the first STATUS_ITEMS field found)
@@ -37,6 +39,10 @@ import java.util.Vector;
 public class JavaAgent extends AgentBase {
 
 	// ---- Settings --------------------------------------------------------
+	// Extra folders to search for .nsf files, besides the Notes data folder.
+	// Use this when the databases are kept somewhere else. Use forward
+	// slashes, for example: { "C:/Users/user/Desktop/Domino/data" }
+	private static final String[] EXTRA_FOLDERS = { };
 	// Folder for the report. It is created if missing.
 	private static final String OUTPUT_DIR = "C:\\vcais-export";
 	// Databases whose path or title contains this (case-insensitive) get a
@@ -55,6 +61,7 @@ public class JavaAgent extends AgentBase {
 		"No Access", "Depositor", "Reader", "Author", "Editor", "Designer", "Manager" };
 
 	private BufferedWriter out;
+	private final Set<String> seen = new HashSet<String>();
 
 	public void NotesMain() {
 		File dir = new File(OUTPUT_DIR);
@@ -86,6 +93,16 @@ public class JavaAgent extends AgentBase {
 				db.recycle();
 				db = next;
 			}
+			for (int i = 0; i < EXTRA_FOLDERS.length; i++) {
+				File folder = new File(EXTRA_FOLDERS[i]);
+				line("-- Searching folder " + folder.getAbsolutePath());
+				if (!folder.isDirectory()) {
+					line("  not a folder, or not found");
+					line("");
+					continue;
+				}
+				total += scanFolder(dbDir, folder, 0);
+			}
 			line("Databases found: " + total);
 			line("Done.");
 			System.out.println("VCAIS census written to " + reportFile.getAbsolutePath());
@@ -98,8 +115,43 @@ public class JavaAgent extends AgentBase {
 		}
 	}
 
+	/** Opens every .nsf file under folder and reports on it. Returns how many were found. */
+	private int scanFolder(DbDirectory dbDir, File folder, int depth) throws Exception {
+		File[] files = folder.listFiles();
+		if (files == null || depth > 8) return 0;
+		int found = 0;
+		for (int i = 0; i < files.length; i++) {
+			File f = files[i];
+			if (f.isDirectory()) {
+				found += scanFolder(dbDir, f, depth + 1);
+			} else if (f.getName().toLowerCase().endsWith(".nsf")) {
+				found++;
+				String path = f.getAbsolutePath().replace('\\', '/');
+				try {
+					Database db = dbDir.openDatabase(path);
+					if (db == null) {
+						line("== " + path);
+						line("  could not open");
+						line("");
+					} else {
+						censusDatabase(db);
+						db.recycle();
+					}
+				} catch (Throwable t) {
+					line("== " + path);
+					line("  ERROR: " + describe(t));
+					line("");
+				}
+				out.flush();
+			}
+		}
+		return found;
+	}
+
 	private void censusDatabase(Database db) throws Exception {
 		String path = db.getFilePath();
+		String key = path.replace('\\', '/').toLowerCase();
+		if (!seen.add(key)) return;
 		line("== " + path);
 		if (!db.isOpen() && !db.open()) {
 			line("  could not open");

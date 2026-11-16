@@ -62,6 +62,8 @@ Do this even though the programs only read data.
    - `C:\Program Files\IBM\Lotus\Notes\Data`
    - `C:\Users\<your name>\AppData\Local\IBM\Notes\Data`
    - `C:\Notes\Data`
+
+   The VCAIS files may also sit in a separate folder outside the Notes data folder, such as `C:\Users\<name>\Desktop\Domino\data\VCAIS`. Note where they are; you'll need the folder in Step 4.
 3. Find the VCAIS `.nsf` files. They may be in a subfolder. Copy them all to a safe place, such as a folder on another drive named `VCAIS backup <today's date>`.
 
 ---
@@ -103,7 +105,21 @@ The programs go in their own empty database. VCAIS stays untouched, and the VCAI
 
 **How to tell it worked:** saving shows no red marks, and the **Problems** panel (next to Properties) lists no errors. If there are errors, the paste was usually incomplete. Repeat steps 5–7 and save again.
 
-> The code starts with a few lines of settings in capital letters, such as `OUTPUT_DIR = "C:\\vcais-export"`. For the census, the defaults are fine. Don't change anything else.
+> The code starts with a few lines of settings in capital letters. Change at most one of them here:
+>
+> **If the VCAIS files are outside the Notes data folder** (see Step 2), add their folder to `EXTRA_FOLDERS`. **Use forward slashes `/`**, not backslashes. For example, change
+>
+> ```java
+> private static final String[] EXTRA_FOLDERS = { };
+> ```
+>
+> to
+>
+> ```java
+> private static final String[] EXTRA_FOLDERS = { "C:/Users/user/Desktop/Domino/data" };
+> ```
+>
+> Leave everything else as it is.
 
 ---
 
@@ -114,6 +130,8 @@ The programs go in their own empty database. VCAIS stays untouched, and the VCAI
 3. Choose **Actions → VCAIS Census**.
 4. If an **Execution Security Alert** appears, choose **Execute once**. Notes asks this because the program is new and signed with your ID.
 5. Wait. A small database takes seconds. A large one can take several minutes. Notes may look frozen. **Don't click anything** until it responds again.
+
+   If the VCAIS databases don't appear in the report, they are outside the Notes data folder. Set `EXTRA_FOLDERS` (Step 4) and run the census again.
 6. Open `C:\vcais-export` in File Explorer. You should see a file like `vcais-census-20261201-101500.txt`. Open it in Notepad.
 
 **If no file appears:** see [Troubleshooting](#troubleshooting).
@@ -125,7 +143,7 @@ The programs go in their own empty database. VCAIS stays untouched, and the VCAI
 The report lists every database Notes can see. Look for the VCAIS ones. Each section looks like this (numbers made up):
 
 ```
-== C:\Notes\Data\vcais\ClosedCases.nsf
+== C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf
   title: VCAIS Closed Cases
   size: 812 MB
   your access: Manager
@@ -142,7 +160,7 @@ The report lists every database Notes can see. Look for the VCAIS ones. Each sec
 
 Write down:
 
-1. **The file path after `==`** for each VCAIS database you need, such as `C:\Notes\Data\vcais\ClosedCases.nsf`. It may be a full path like this, or just a file name. You'll type it in Step 7.
+1. **The file path after `==`** for each VCAIS database you need, such as `C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf`. It may be a full path like this, or a shorter path such as `VCAIS\ClosedVCAIS.nsf`. You'll type it in Step 7.
 2. **`documents visible to you`.** The export should end with this same number.
 3. **Whether `documents with a Readers field` is above 0.** If it is, read [the Readers section](#if-the-census-mentions-readers-fields) before you export.
 
@@ -163,16 +181,16 @@ Before saving, change **one line**. Near the top, find:
 private static final String[] DATABASES = { "ClosedVCAIS.nsf" };
 ```
 
-Change the name in quotes to the path from the census. **Inside the quotes, every `\` must be typed twice.** For example, the census path `C:\Notes\Data\vcais\ClosedCases.nsf` becomes:
+Change the name in quotes to the path from the census. **Use forward slashes `/`.** If the census shows backslashes `\`, change each one to `/`. For example:
 
 ```java
-private static final String[] DATABASES = { "C:\\Notes\\Data\\vcais\\ClosedCases.nsf" };
+private static final String[] DATABASES = { "C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf" };
 ```
 
 To export more than one database, separate them with commas:
 
 ```java
-private static final String[] DATABASES = { "C:\\Notes\\Data\\vcais\\ClosedCases.nsf", "C:\\Notes\\Data\\vcais\\Archive2015.nsf" };
+private static final String[] DATABASES = { "C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf", "C:/Users/user/Desktop/Domino/data/VCAIS/Archive2015.nsf" };
 ```
 
 Keep the quotes, the braces `{ }` and the semicolon `;` exactly as shown. Then set the trigger, target and security level as in Step 4 and save with **Ctrl+S**. Check that there are no errors.
@@ -223,12 +241,12 @@ VCAIS can restrict some documents to certain people. Those documents are **invis
 | What you see | What to do |
 |---|---|
 | No **VCAIS Census** under **Actions** | Make sure the **VCAIS Export Tools** database is open, not another one. In Designer, check the agent's trigger is **Action menu selection** and that you saved it. |
-| Red marks or errors when saving | The paste was incomplete or the settings line was mistyped. Paste the whole file again. If you edited `DATABASES`, check the quotes, the doubled `\\`, `{ }` and `;`. |
+| Red marks or errors when saving | The paste was incomplete or the settings line was mistyped. Paste the whole file again. If you edited `DATABASES`, check the quotes, the forward slashes, `{ }` and `;`. |
 | Nothing happens, no `C:\vcais-export` folder | In Notes, choose **Tools → Show Java Debug Console** (or **File → Tools → Show Java Debug Console**) and run the agent again. Send a photo or a copy of the console text. Also check the runtime security level is **2** (Step 4, item 9). |
-| `could not open` in the census or log | Your ID can't open that database, or the path is wrong. Check spelling, and that every `\` is doubled in `DATABASES`. |
+| `could not open` in the census or log | Your ID can't open that database, or the path is wrong. Check the spelling, and that `DATABASES` uses forward slashes `/`. |
 | `Execution Security Alert` every time | Normal. Choose **Execute once**, or **Start trusting the signer** if your policy allows. |
 | Notes says it's not responding | Normal during a long export. Wait. Only restart if the log hasn't added a line in 30 minutes. |
-| The disk filled up | Free space or set `OUTPUT_DIR` to a bigger drive, for example `"D:\\vcais-export"`, then run again. |
+| The disk filled up | Free space or set `OUTPUT_DIR` to a bigger drive, for example `"D:/vcais-export"`, then run again. |
 
 ---
 
