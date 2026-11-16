@@ -32,7 +32,7 @@ You need:
   If it is missing, install it from the same Notes installer the county used. Choose the option that includes Designer.
 - **Your Notes ID and password**, ideally an ID with full (Manager) access to the VCAIS databases. See [Readers fields](#if-the-census-mentions-readers-fields).
 - **A USB stick**, or another approved way to move two small text files onto the computer.
-- **About 2× the size of the VCAIS database files in free disk space on `C:`.** The export files are larger than the database.
+- **About 3× the size of the VCAIS database files in free disk space on `C:`.** The export writes two copies of the data, and each is larger than the database.
 
 To check your Notes version: open Notes and choose **Help → About Notes**. This guide uses the menus from Notes and Designer **8.5 and later**. Older versions have the same steps, but some menu names differ.
 
