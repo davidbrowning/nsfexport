@@ -3,6 +3,7 @@ import lotus.domino.*;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -11,7 +12,12 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /*
- * VCAIS export: exports every document in one or more Notes databases to DXL.
+ * VCAIS export: exports every document in one or more Notes databases, in
+ * two formats (each can be turned off below):
+ *   - DXL, Notes' full XML format, including rich text and attachments.
+ *   - "Legacy XML": one file per document, written with Document.generateXML,
+ *     the same format and file names (document.N.xml) as the earlier script,
+ *     so importers written for that output keep working.
  *
  * Fixes over the original one-shot agent:
  *   - Exports one document at a time and appends to the file, so memory use
@@ -23,10 +29,13 @@ import java.util.TreeMap;
  *   - Writes a manifest (one CSV row per document, no case data) and checks the
  *     number exported against the database's own count.
  *
- * Output, per database, in OUTPUT_DIR:
- *   <name>-<time>.dxl           all documents, wrapped in one <vcaisexport> root
- *   <name>-<time>-manifest.csv  note id, UNID, form, status, result per document
- *   vcais-export-<time>.log     progress, errors and the final count check
+ * Output in OUTPUT_DIR:
+ *   vcais-export-<time>.log          progress, errors and the final count check
+ *   <name>-<time>/                   one folder per database, holding:
+ *     dxl/<name>.dxl                 all documents under one <vcaisexport> root
+ *     xml/document.0.xml, .1.xml ... legacy XML, one file per document
+ *     manifest.csv                   per document: note id, UNID, form, status,
+ *                                    legacy file name, and the result per format
  *
  * Written for old Notes clients: Java 6 syntax only.
  *
@@ -47,6 +56,9 @@ public class JavaAgent extends AgentBase {
 	private static final String OUTPUT_DIR = "C:\\vcais-export";
 	// Fields tried, in order, for the case status column in the manifest.
 	private static final String[] STATUS_ITEMS = { "Status", "CaseStatus", "Case_Status" };
+	// Formats to write. At least one must be true.
+	private static final boolean WRITE_DXL = true;
+	private static final boolean WRITE_LEGACY_XML = true;
 	// Write a progress line to the log every this many documents.
 	private static final int PROGRESS_EVERY = 500;
 	// ----------------------------------------------------------------------
@@ -85,45 +97,62 @@ public class JavaAgent extends AgentBase {
 		}
 	}
 
-	/** Returns true when every document was exported. */
+	/** Returns true when every document was exported in every chosen format. */
 	private boolean exportDatabase(Session session, DbDirectory dbDir, String path, File dir, String stamp)
 			throws Exception {
 		log("== " + path);
+		if (!WRITE_DXL && !WRITE_LEGACY_XML) {
+			log("  nothing to do: WRITE_DXL and WRITE_LEGACY_XML are both false");
+			return false;
+		}
 		Database db = dbDir.openDatabase(path);
 		if (db == null || !db.isOpen()) {
 			log("  could not open " + path);
 			return false;
 		}
-		String base = new File(path).getName().replaceAll("(?i)\\.nsf$", "") + "-" + stamp;
-		File dxlFile = new File(dir, base + ".dxl");
-		File csvFile = new File(dir, base + "-manifest.csv");
+		String name = new File(path.replace('\\', '/')).getName().replaceAll("(?i)\\.nsf$", "");
+		File dbOut = new File(dir, name + "-" + stamp);
+		File dxlDir = new File(dbOut, "dxl");
+		File xmlDir = new File(dbOut, "xml");
+		if (WRITE_DXL) dxlDir.mkdirs();
+		if (WRITE_LEGACY_XML) xmlDir.mkdirs();
+		dbOut.mkdirs();
+		File dxlFile = new File(dxlDir, name + ".dxl");
+		File csvFile = new File(dbOut, "manifest.csv");
 
 		DocumentCollection dc = db.getAllDocuments();
 		int expected = dc.getCount();
 		log("  documents visible to this ID: " + expected);
+		log("  output folder: " + dbOut.getAbsolutePath());
 
-		DxlExporter exporter = session.createDxlExporter();
-		exporter.setExitOnFirstFatalError(false);
+		DxlExporter exporter = null;
+		if (WRITE_DXL) {
+			exporter = session.createDxlExporter();
+			exporter.setExitOnFirstFatalError(false);
+		}
 
 		BufferedWriter dxl = null;
 		BufferedWriter csv = null;
-		int exported = 0, failed = 0, seen = 0;
+		int dxlOk = 0, dxlFailed = 0, xmlOk = 0, xmlFailed = 0, seen = 0;
 		Map<String, Integer> byForm = new TreeMap<String, Integer>();
 		try {
-			dxl = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(dxlFile), "UTF-8"));
+			if (WRITE_DXL) {
+				dxl = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(dxlFile), "UTF-8"));
+				dxl.write("<?xml version='1.0' encoding='utf-8'?>\r\n");
+				dxl.write("<vcaisexport database='" + xmlAttr(path) + "' replicaid='" + xmlAttr(db.getReplicaID())
+					+ "' exported='" + stamp + "'>\r\n");
+			}
 			csv = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(csvFile), "UTF-8"));
-			dxl.write("<?xml version='1.0' encoding='utf-8'?>\r\n");
-			dxl.write("<vcaisexport database='" + xmlAttr(path) + "' replicaid='" + xmlAttr(db.getReplicaID())
-				+ "' exported='" + stamp + "'>\r\n");
-			csv.write("noteid,unid,form,status,is_response,parent_unid,encrypted,dxl_chars,result,error\r\n");
+			csv.write("noteid,unid,form,status,is_response,parent_unid,encrypted,legacy_xml_file,dxl_result,xml_result,error\r\n");
 
 			Document doc = dc.getFirstDocument();
 			while (doc != null) {
-				seen++;
 				String noteId = "", unid = "", form = "", status = "", parent = "", error = "";
+				String dxlResult = WRITE_DXL ? "failed" : "skipped";
+				String xmlResult = WRITE_LEGACY_XML ? "failed" : "skipped";
+				String xmlName = WRITE_LEGACY_XML ? "document." + seen + ".xml" : "";
 				boolean response = false, encrypted = false;
-				int chars = 0;
-				boolean ok = false;
+				seen++;
 				try {
 					noteId = doc.getNoteID();
 					unid = doc.getUniversalID();
@@ -132,33 +161,58 @@ public class JavaAgent extends AgentBase {
 					response = doc.isResponse();
 					if (response) parent = doc.getParentDocumentUNID();
 					encrypted = doc.isEncrypted();
-
-					String body = stripProlog(exporter.exportDxl(doc));
-					chars = body.length();
-					dxl.write(body);
-					dxl.write("\r\n");
-					ok = true;
-					exported++;
 					bump(byForm, form == null || form.length() == 0 ? "<no Form>" : form);
 				} catch (Throwable t) {
-					// Includes OutOfMemoryError on a single huge document.
-					failed++;
-					error = describe(t);
-					log("  FAILED note " + noteId + " (UNID " + unid + "): " + error);
+					error = append(error, "read: " + describe(t));
 				}
+				if (WRITE_DXL) {
+					try {
+						dxl.write(stripProlog(exporter.exportDxl(doc)));
+						dxl.write("\r\n");
+						dxlResult = "ok";
+						dxlOk++;
+					} catch (Throwable t) {
+						// Includes OutOfMemoryError on a single huge document.
+						dxlFailed++;
+						error = append(error, "dxl: " + describe(t));
+					}
+				}
+				if (WRITE_LEGACY_XML) {
+					// Same call and same writer type (platform encoding) as the
+					// earlier script, so the files match what importers expect.
+					BufferedWriter x = null;
+					try {
+						x = new BufferedWriter(new FileWriter(new File(xmlDir, xmlName)));
+						doc.generateXML(x);
+						x.close();
+						x = null;
+						xmlResult = "ok";
+						xmlOk++;
+					} catch (Throwable t) {
+						xmlFailed++;
+						error = append(error, "xml: " + describe(t));
+					} finally {
+						if (x != null) {
+							try { x.close(); } catch (Throwable ignored) { }
+						}
+					}
+					// Don't leave an empty or partial file for the importer to trip on.
+					if (!"ok".equals(xmlResult)) new File(xmlDir, xmlName).delete();
+				}
+				if (error.length() > 0) log("  PROBLEM with note " + noteId + " (UNID " + unid + "): " + error);
 				csv.write(csvRow(new String[] { noteId, unid, form, status, response ? "Y" : "N", parent,
-					encrypted ? "Y" : "N", String.valueOf(chars), ok ? "ok" : "failed", error }));
+					encrypted ? "Y" : "N", xmlName, dxlResult, xmlResult, error }));
 
 				if (seen % PROGRESS_EVERY == 0) {
 					log("  progress: " + seen + " of " + expected);
-					dxl.flush();
+					if (dxl != null) dxl.flush();
 					csv.flush();
 				}
 				Document next = dc.getNextDocument();
 				doc.recycle();
 				doc = next;
 			}
-			dxl.write("</vcaisexport>\r\n");
+			if (dxl != null) dxl.write("</vcaisexport>\r\n");
 		} finally {
 			if (dxl != null) {
 				try { dxl.close(); } catch (Throwable t) { log("  ERROR closing DXL file: " + describe(t)); }
@@ -168,27 +222,45 @@ public class JavaAgent extends AgentBase {
 			}
 		}
 
-		try {
-			String exporterLog = exporter.getLog();
-			if (exporterLog != null && exporterLog.trim().length() > 0) {
-				log("  exporter log: " + exporterLog.trim());
-			}
-		} catch (Throwable ignored) { }
+		if (exporter != null) {
+			try {
+				String exporterLog = exporter.getLog();
+				if (exporterLog != null && exporterLog.trim().length() > 0) {
+					log("  DXL exporter log: " + exporterLog.trim());
+				}
+			} catch (Throwable ignored) { }
+		}
 
-		log("  exported by Form:");
+		log("  documents by Form:");
 		for (Iterator<Map.Entry<String, Integer>> it = byForm.entrySet().iterator(); it.hasNext();) {
 			Map.Entry<String, Integer> e = it.next();
 			log("    " + e.getValue() + "\t" + e.getKey());
 		}
-		boolean complete = failed == 0 && exported == expected;
-		log("  " + (complete ? "COMPLETE" : "INCOMPLETE") + ": exported " + exported + ", failed " + failed
-			+ ", walked " + seen + ", expected " + expected);
-		log("  wrote " + dxlFile.getAbsolutePath() + " (" + dxlFile.length() + " bytes)");
+		boolean complete = seen == expected;
+		if (WRITE_DXL) {
+			boolean ok = dxlFailed == 0 && dxlOk == expected;
+			complete = complete && ok;
+			log("  DXL " + (ok ? "COMPLETE" : "INCOMPLETE") + ": exported " + dxlOk + ", failed " + dxlFailed
+				+ ", expected " + expected);
+			log("  wrote " + dxlFile.getAbsolutePath() + " (" + dxlFile.length() + " bytes)");
+		}
+		if (WRITE_LEGACY_XML) {
+			boolean ok = xmlFailed == 0 && xmlOk == expected;
+			complete = complete && ok;
+			log("  legacy XML " + (ok ? "COMPLETE" : "INCOMPLETE") + ": exported " + xmlOk + ", failed " + xmlFailed
+				+ ", expected " + expected);
+			log("  wrote " + xmlOk + " files to " + xmlDir.getAbsolutePath());
+		}
+		if (seen != expected) log("  WARNING: walked " + seen + " documents but expected " + expected);
 		log("  wrote " + csvFile.getAbsolutePath());
 		dc.recycle();
-		exporter.recycle();
+		if (exporter != null) exporter.recycle();
 		db.recycle();
 		return complete;
+	}
+
+	private static String append(String errors, String more) {
+		return errors.length() == 0 ? more : errors + "; " + more;
 	}
 
 	private static String statusOf(Document doc) throws NotesException {

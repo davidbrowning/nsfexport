@@ -204,22 +204,25 @@ Keep the quotes, the braces `{ }` and the semicolon `;` exactly as shown. Then s
 3. Wait. **A big database can take hours.** Notes will look frozen the whole time. Leave it alone. Don't let the computer sleep. In Windows power settings, set sleep to **Never** for the day.
 4. To check progress, open the newest `vcais-export-*.log` in `C:\vcais-export` with Notepad. It writes a progress line every 500 documents. Close and reopen it to see new lines.
 
-When it finishes, `C:\vcais-export` holds, for each database:
+When it finishes, `C:\vcais-export` holds the log, plus one folder per database named `<name>-<time>`:
 
 | File | What it is | Share it? |
 |---|---|---|
-| `<name>-<time>.dxl` | **The exported case data** (XML text) | **No.** This is the data. Handle it under your data rules. |
-| `<name>-<time>-manifest.csv` | One row per document: ID, form, status, ok or failed | Keep it local |
 | `vcais-export-<time>.log` | Progress, errors and the final count check | Yes, safe to send |
+| `<name>-<time>\xml\document.0.xml`, `document.1.xml`, … | **Case data**, one file per document, in the same format as the earlier export. Use this for the importer the vendor already built. | **No.** Handle it under your data rules. |
+| `<name>-<time>\dxl\<name>.dxl` | **Case data**, every document in one file, in Notes' full format (DXL). It includes rich text and attachments, which the older format may leave out. | **No.** Same as above. |
+| `<name>-<time>\manifest.csv` | One row per document: IDs, form, status, which `document.N.xml` it is, and ok or failed for each format | Keep it local |
+
+Both formats are written in the same run. To write only one, set `WRITE_DXL` or `WRITE_LEGACY_XML` to `false` in the settings at the top of the program.
 
 ---
 
 ## Step 9: Check the result
 
-Open the log and go to the bottom. For each database, look for one of these lines:
+Open the log and go to the bottom. For each database there is one line per format:
 
-- `COMPLETE: exported 48211, failed 0, ...` **Done.** The number should match `documents visible to you` from the census.
-- `INCOMPLETE: exported 48190, failed 21, ...` Some documents failed. The lines starting with `FAILED` name each one. Send the log to your consultant.
+- `DXL COMPLETE: exported 48211, failed 0, ...` and `legacy XML COMPLETE: exported 48211, failed 0, ...` **Done.** The number should match `documents visible to you` from the census.
+- `... INCOMPLETE: exported 48190, failed 21, ...` Some documents failed in that format. The lines starting with `PROBLEM` name each one. Send the log to your consultant.
 
 The last line of the log is `ALL COMPLETE` or `SOME EXPORTS INCOMPLETE`.
 
