@@ -1,6 +1,6 @@
 # Exporting VCAIS data: step-by-step
 
-This guide is for IT staff who know Windows well but have not written Notes code. You do not need to know how to program. You will copy two files in, change one line, and click some menus.
+You will copy two files in, change one line, and click through some menus.
 
 **VCAIS** is the Virginia prosecutors' case management system. It runs on Lotus Notes (now HCL Notes). Its data lives in `.nsf` database files on the computer that runs Notes. This guide gets that data out of those files and into plain-text files that a new system can import.
 

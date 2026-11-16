@@ -12,7 +12,7 @@ These agent will produce a ".dxl" dump which is at least plain text.
 
 ## Census and export agents (recommended)
 
-**Step-by-step guide for non-programmers: [INSTRUCTIONS.md](INSTRUCTIONS.md).**
+**Step-by-step guide: [INSTRUCTIONS.md](INSTRUCTIONS.md).**
 
 The two original agents above export a whole database in one go. That can fail on big databases: the full export is built in memory as one string, the output file is never closed, and errors only show in the Java Debug Console. The two agents below fix that.
 
