@@ -39,8 +39,9 @@ import java.util.TreeMap;
 public class JavaAgent extends AgentBase {
 
 	// ---- Settings --------------------------------------------------------
-	// Database file paths, relative to the Notes data folder. Use the paths
-	// shown in the census report.
+	// Database file paths. Copy them from the census report
+	// (a full path, or a path relative to the Notes data folder).
+	// Inside quotes, type every backslash twice: "C:\\Notes\\Data\\x.nsf"
 	private static final String[] DATABASES = { "ClosedVCAIS.nsf" };
 	// Folder for the output. It is created if missing.
 	private static final String OUTPUT_DIR = "C:\\vcais-export";

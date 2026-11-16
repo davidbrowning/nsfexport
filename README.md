@@ -12,6 +12,8 @@ These agent will produce a ".dxl" dump which is at least plain text.
 
 ## Census and export agents (recommended)
 
+**Step-by-step guide for non-programmers: [INSTRUCTIONS.md](INSTRUCTIONS.md).**
+
 The two original agents above export a whole database in one go. That can fail on big databases: the full export is built in memory as one string, the output file is never closed, and errors only show in the Java Debug Console. The two agents below fix that.
 
 1. **`VcaisCensus.java`** is read-only. It lists every database in the local Notes data folder with its document count and your access level. For databases whose name or title contains `vcais`, it also counts documents by Form and by status, counts response, encrypted and Readers-protected documents, and lists the field names on each Form. The report holds no case data, so you can share it while debugging.
