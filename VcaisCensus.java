@@ -28,8 +28,8 @@ import java.util.Vector;
  * It writes NO case data: only counts, field names and short status values.
  * The report is a small text file that is safe to read out or share.
  *
- * Written for old Notes clients: Java 6 syntax only (no try-with-resources,
- * no diamond operator, no lambdas).
+ * Written for old Notes clients (Notes 6 and later): Java 1.3 only, so no
+ * generics, no for-each loops and no regular expressions.
  *
  * To use: in Designer, create a Java agent, paste this in as class JavaAgent
  * (or set the base class name to VcaisCensus), set the trigger to
@@ -43,8 +43,9 @@ public class JavaAgent extends AgentBase {
 	// Use this when the databases are kept somewhere else. Use forward
 	// slashes, for example: { "C:/Users/user/Desktop/Domino/data" }
 	private static final String[] EXTRA_FOLDERS = { };
-	// Folder for the report. It is created if missing.
-	private static final String OUTPUT_DIR = "C:\\vcais-export";
+	// Folder for the output. Leave it "" to use a "vcais-export" folder on the
+	// Desktop. It is created if missing. Use forward slashes, e.g. "D:/export".
+	private static final String OUTPUT_DIR = "";
 	// Databases whose path or title contains this (case-insensitive) get a
 	// full scan. Use "" to scan every database (slow on a full data folder).
 	private static final String MATCH = "vcais";
@@ -61,10 +62,10 @@ public class JavaAgent extends AgentBase {
 		"No Access", "Depositor", "Reader", "Author", "Editor", "Designer", "Manager" };
 
 	private BufferedWriter out;
-	private final Set<String> seen = new HashSet<String>();
+	private final Set seen = new HashSet();
 
 	public void NotesMain() {
-		File dir = new File(OUTPUT_DIR);
+		File dir = outputFolder();
 		dir.mkdirs();
 		String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date());
 		File reportFile = new File(dir, "vcais-census-" + stamp + ".txt");
@@ -180,9 +181,9 @@ public class JavaAgent extends AgentBase {
 	}
 
 	private void scanDocuments(DocumentCollection dc) throws Exception {
-		Map<String, Integer> byForm = new TreeMap<String, Integer>();
-		Map<String, Integer> byStatus = new TreeMap<String, Integer>();
-		Map<String, TreeSet<String>> fieldsByForm = new TreeMap<String, TreeSet<String>>();
+		Map byForm = new TreeMap();
+		Map byStatus = new TreeMap();
+		Map fieldsByForm = new TreeMap();
 		int responses = 0, encrypted = 0, withReaders = 0, withAuthors = 0, errors = 0;
 		String statusField = null;
 
@@ -208,9 +209,9 @@ public class JavaAgent extends AgentBase {
 				if (byStatus.containsKey(status) || byStatus.size() < MAX_STATUS_VALUES) bump(byStatus, status);
 				else bump(byStatus, "<other values>");
 
-				TreeSet<String> fields = fieldsByForm.get(form);
+				TreeSet fields = (TreeSet) fieldsByForm.get(form);
 				if (fields == null) {
-					fields = new TreeSet<String>();
+					fields = new TreeSet();
 					fieldsByForm.put(form, fields);
 				}
 				boolean readers = false, authors = false;
@@ -242,25 +243,25 @@ public class JavaAgent extends AgentBase {
 			line("  invisible here and cannot be counted. Compare with an admin ID.");
 		}
 		line("  by Form:");
-		for (Iterator<Map.Entry<String, Integer>> it = byForm.entrySet().iterator(); it.hasNext();) {
-			Map.Entry<String, Integer> e = it.next();
+		for (Iterator it = byForm.entrySet().iterator(); it.hasNext();) {
+			Map.Entry e = (Map.Entry) it.next();
 			line("    " + e.getValue() + "\t" + e.getKey());
 		}
 		line("  by status (field: " + (statusField == null ? "none of " + join(STATUS_ITEMS) + " found" : statusField) + "):");
-		for (Iterator<Map.Entry<String, Integer>> it = byStatus.entrySet().iterator(); it.hasNext();) {
-			Map.Entry<String, Integer> e = it.next();
+		for (Iterator it = byStatus.entrySet().iterator(); it.hasNext();) {
+			Map.Entry e = (Map.Entry) it.next();
 			line("    " + e.getValue() + "\t" + e.getKey());
 		}
 		line("  fields by Form:");
-		for (Iterator<Map.Entry<String, TreeSet<String>>> it = fieldsByForm.entrySet().iterator(); it.hasNext();) {
-			Map.Entry<String, TreeSet<String>> e = it.next();
-			line("    " + e.getKey() + ": " + join(e.getValue().toArray(new String[0])));
+		for (Iterator it = fieldsByForm.entrySet().iterator(); it.hasNext();) {
+			Map.Entry e = (Map.Entry) it.next();
+			line("    " + e.getKey() + ": " + join((String[]) ((TreeSet) e.getValue()).toArray(new String[0])));
 		}
 	}
 
-	private static void bump(Map<String, Integer> m, String key) {
-		Integer n = m.get(key);
-		m.put(key, Integer.valueOf(n == null ? 1 : n.intValue() + 1));
+	private static void bump(Map m, String key) {
+		Integer n = (Integer) m.get(key);
+		m.put(key, new Integer(n == null ? 1 : n.intValue() + 1));
 	}
 
 	private static String join(String[] parts) {
@@ -274,6 +275,13 @@ public class JavaAgent extends AgentBase {
 
 	private static String accessName(int level) {
 		return level >= 0 && level < ACCESS_LEVELS.length ? ACCESS_LEVELS[level] : "level " + level;
+	}
+
+	private static File outputFolder() {
+		if (OUTPUT_DIR.length() > 0) return new File(OUTPUT_DIR);
+		File desktop = new File(System.getProperty("user.home"), "Desktop");
+		if (desktop.isDirectory()) return new File(desktop, "vcais-export");
+		return new File("C:/vcais-export");
 	}
 
 	private static String describe(Throwable t) {

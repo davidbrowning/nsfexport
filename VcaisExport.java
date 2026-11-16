@@ -37,7 +37,8 @@ import java.util.TreeMap;
  *     manifest.csv                   per document: note id, UNID, form, status,
  *                                    legacy file name, and the result per format
  *
- * Written for old Notes clients: Java 6 syntax only.
+ * Written for old Notes clients (Notes 6 and later): Java 1.3 only, so no
+ * generics, no for-each loops and no regular expressions.
  *
  * To use: run the census agent first to find the right database file names.
  * Edit DATABASES below. In Designer, create a Java agent, paste this in as
@@ -52,8 +53,9 @@ public class JavaAgent extends AgentBase {
 	// (a full path, or a path relative to the Notes data folder).
 	// Use forward slashes: "C:/Users/user/Desktop/Domino/data/VCAIS/x.nsf"
 	private static final String[] DATABASES = { "ClosedVCAIS.nsf" };
-	// Folder for the output. It is created if missing.
-	private static final String OUTPUT_DIR = "C:\\vcais-export";
+	// Folder for the output. Leave it "" to use a "vcais-export" folder on the
+	// Desktop. It is created if missing. Use forward slashes, e.g. "D:/export".
+	private static final String OUTPUT_DIR = "";
 	// Fields tried, in order, for the case status column in the manifest.
 	private static final String[] STATUS_ITEMS = { "Status", "CaseStatus", "Case_Status" };
 	// Formats to write. At least one must be true.
@@ -66,7 +68,7 @@ public class JavaAgent extends AgentBase {
 	private BufferedWriter log;
 
 	public void NotesMain() {
-		File dir = new File(OUTPUT_DIR);
+		File dir = outputFolder();
 		dir.mkdirs();
 		String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date());
 		File logFile = new File(dir, "vcais-export-" + stamp + ".log");
@@ -110,7 +112,9 @@ public class JavaAgent extends AgentBase {
 			log("  could not open " + path);
 			return false;
 		}
-		String name = new File(path.replace('\\', '/')).getName().replaceAll("(?i)\\.nsf$", "");
+		String name = new File(path.replace('\\', '/')).getName();
+		// Some VCAIS files are named like "ClosedVCAIS.nsf.NSF": drop every .nsf.
+		while (name.toLowerCase().endsWith(".nsf")) name = name.substring(0, name.length() - 4);
 		File dbOut = new File(dir, name + "-" + stamp);
 		File dxlDir = new File(dbOut, "dxl");
 		File xmlDir = new File(dbOut, "xml");
@@ -134,7 +138,7 @@ public class JavaAgent extends AgentBase {
 		BufferedWriter dxl = null;
 		BufferedWriter csv = null;
 		int dxlOk = 0, dxlFailed = 0, xmlOk = 0, xmlFailed = 0, seen = 0;
-		Map<String, Integer> byForm = new TreeMap<String, Integer>();
+		Map byForm = new TreeMap();
 		try {
 			if (WRITE_DXL) {
 				dxl = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(dxlFile), "UTF-8"));
@@ -232,8 +236,8 @@ public class JavaAgent extends AgentBase {
 		}
 
 		log("  documents by Form:");
-		for (Iterator<Map.Entry<String, Integer>> it = byForm.entrySet().iterator(); it.hasNext();) {
-			Map.Entry<String, Integer> e = it.next();
+		for (Iterator it = byForm.entrySet().iterator(); it.hasNext();) {
+			Map.Entry e = (Map.Entry) it.next();
 			log("    " + e.getValue() + "\t" + e.getKey());
 		}
 		boolean complete = seen == expected;
@@ -290,8 +294,17 @@ public class JavaAgent extends AgentBase {
 
 	private static String xmlAttr(String s) {
 		if (s == null) return "";
-		return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-			.replaceAll("'", "&apos;").replaceAll("\"", "&quot;");
+		StringBuffer sb = new StringBuffer();
+		for (int i = 0; i < s.length(); i++) {
+			char c = s.charAt(i);
+			if (c == '&') sb.append("&amp;");
+			else if (c == '<') sb.append("&lt;");
+			else if (c == '>') sb.append("&gt;");
+			else if (c == '\'') sb.append("&apos;");
+			else if (c == '"') sb.append("&quot;");
+			else sb.append(c);
+		}
+		return sb.toString();
 	}
 
 	private static String csvRow(String[] fields) {
@@ -300,7 +313,13 @@ public class JavaAgent extends AgentBase {
 			if (i > 0) sb.append(',');
 			String f = fields[i] == null ? "" : fields[i];
 			if (f.indexOf(',') >= 0 || f.indexOf('"') >= 0 || f.indexOf('\n') >= 0 || f.indexOf('\r') >= 0) {
-				f = "\"" + f.replaceAll("\"", "\"\"") + "\"";
+				StringBuffer q = new StringBuffer("\"");
+				for (int j = 0; j < f.length(); j++) {
+					char c = f.charAt(j);
+					if (c == '"') q.append('"');
+					q.append(c);
+				}
+				f = q.append('"').toString();
 			}
 			sb.append(f);
 		}
@@ -308,9 +327,16 @@ public class JavaAgent extends AgentBase {
 		return sb.toString();
 	}
 
-	private static void bump(Map<String, Integer> m, String key) {
-		Integer n = m.get(key);
-		m.put(key, Integer.valueOf(n == null ? 1 : n.intValue() + 1));
+	private static void bump(Map m, String key) {
+		Integer n = (Integer) m.get(key);
+		m.put(key, new Integer(n == null ? 1 : n.intValue() + 1));
+	}
+
+	private static File outputFolder() {
+		if (OUTPUT_DIR.length() > 0) return new File(OUTPUT_DIR);
+		File desktop = new File(System.getProperty("user.home"), "Desktop");
+		if (desktop.isDirectory()) return new File(desktop, "vcais-export");
+		return new File("C:/vcais-export");
 	}
 
 	private static String describe(Throwable t) {

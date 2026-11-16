@@ -1,8 +1,8 @@
 # Exporting VCAIS data: step-by-step
 
-You will copy two files in, change one line, and click through some menus.
+You will copy two files in, change a line or two, and click through some menus.
 
-**VCAIS** is the Virginia prosecutors' case management system. It runs on Lotus Notes (now HCL Notes). Its data lives in `.nsf` database files on the computer that runs Notes. This guide gets that data out of those files and into plain-text files that a new system can import.
+**VCAIS** is the Virginia prosecutors' case management system. It runs on Lotus Notes (now HCL Notes). Its data lives in `.nsf` database files. This guide gets that data out into files that a new system can import.
 
 **About 1–2 hours** for setup and the census. The export itself can take hours on a big database, but you can leave it running.
 
@@ -10,15 +10,17 @@ You will copy two files in, change one line, and click through some menus.
 
 ## What you will do
 
-1. Get the two program files onto the Notes computer.
-2. Back up the VCAIS database files.
-3. Make a separate, empty "tools" database to hold the programs. **You do not change VCAIS itself.**
-4. Add and run the **census**. It counts documents and writes a short report with no case data.
-5. Read the census to find the right database file names.
-6. Add and run the **export**.
-7. Check the export log. It says `COMPLETE` or `INCOMPLETE`.
+1. Get a fresh copy of the VCAIS databases onto the export computer.
+2. Make a separate "tools" database to hold the programs. It stays put when you replace the VCAIS copy.
+3. Add and run the **census**. It counts documents and writes a short report with no case data.
+4. Read the census.
+5. Add and run the **export**.
+6. Check the export log. It says `COMPLETE` or `INCOMPLETE`.
+7. Package the output and send it on.
 
 The programs only *read* VCAIS. They never change or delete case data.
+
+**You don't need to open a case first.** Earlier export steps had you open a case as a "home base" before running the agent. These programs find the databases by their file path, so you can skip that.
 
 ---
 
@@ -26,124 +28,103 @@ The programs only *read* VCAIS. They never change or delete case data.
 
 You need:
 
-- **The Windows computer that has Notes and the VCAIS databases on it.**
-- **Domino Designer** on that computer. This is the programming tool that comes with Notes.
-  To check, look in the Start menu for **Domino Designer** (also called *IBM Domino Designer* or *Lotus Domino Designer*).
-  If it is missing, install it from the same Notes installer the county used. Choose the option that includes Designer.
-- **Your Notes ID and password**, ideally an ID with full (Manager) access to the VCAIS databases. See [Readers fields](#if-the-census-mentions-readers-fields).
-- **A USB stick**, or another approved way to move two small text files onto the computer.
-- **About 3× the size of the VCAIS database files in free disk space on `C:`.** The export writes two copies of the data, and each is larger than the database.
+- **The computer with Notes and Domino Designer installed.** Designer is the programming tool that comes with Notes. It's in the Start menu as **Domino Designer** (or *Lotus Domino Designer*).
+- **Your Notes ID and password.** Ideally the ID has full (Manager) access to the VCAIS databases. See [Readers fields](#if-the-census-mentions-readers-fields).
+- **About 3× the size of the VCAIS database files in free disk space.** The export writes two copies of the data, and each is larger than the database.
 
-To check your Notes version: open Notes and choose **Help → About Notes**. This guide uses the menus from Notes and Designer **8.5 and later**. Older versions have the same steps, but some menu names differ.
+**Which Notes version?** In Notes, choose **Help → About Notes**. Menu names changed between versions. This guide shows the menus for **Notes 6 and 7** first, and the **Notes 8.5 and later** menus in brackets, like this: **File → Database → Open** *(8.5+: File → Application → Open)*.
 
 ---
 
-## Step 1: Get the program files
+## Step 1: Get a fresh copy of the VCAIS databases
 
-On any computer with internet access:
+Use your usual procedure to copy the `Domino` folder from the VCAIS server to the export computer's Desktop:
 
-1. Open each link below.
-2. Right-click the page and choose **Save as…**. Keep the file name exactly as shown.
-   - Census: <https://raw.githubusercontent.com/davidbrowning/nsfexport/main/VcaisCensus.java>
-   - Export: <https://raw.githubusercontent.com/davidbrowning/nsfexport/main/VcaisExport.java>
-3. Copy both files to the USB stick, then to the Notes computer's desktop.
+1. Rename the old `Domino` folder on the Desktop to `Domino.backup`. That's your backup.
+2. Copy the whole `Domino` folder from the server. The VCAIS databases sometimes depend on each other, so copy the entire folder, not just the files you think you need.
+3. Disconnect the export computer from the network before you go on.
 
-They are plain text. You can open them in Notepad to look at them.
+The VCAIS files are then in a folder like `C:\Users\user\Desktop\Domino\data\VCAIS`. Some file names have a doubled extension, such as `ClosedVCAIS.nsf.NSF`. That's normal for these files. Leave the names as they are.
 
 ---
 
-## Step 2: Back up the VCAIS databases
+## Step 2: Make a "tools" database
 
-Do this even though the programs only read data.
+The programs go in their own small database, separate from the VCAIS copy. Because it lives in the Notes data folder, not in the `Domino` folder, it survives when you replace the VCAIS copy next time. **Do this once.**
 
-1. **Close Notes and Designer completely.**
-2. Find the Notes data folder. It is usually one of these:
-   - `C:\Program Files (x86)\IBM\Notes\Data`
-   - `C:\Program Files\IBM\Lotus\Notes\Data`
-   - `C:\Users\<your name>\AppData\Local\IBM\Notes\Data`
-   - `C:\Notes\Data`
-
-   The VCAIS files may also sit in a separate folder outside the Notes data folder, such as `C:\Users\<name>\Desktop\Domino\data\VCAIS`. Note where they are; you'll need the folder in Step 4.
-3. Find the VCAIS `.nsf` files. They may be in a subfolder. Copy them all to a safe place, such as a folder on another drive named `VCAIS backup <today's date>`.
-
----
-
-## Step 3: Make a "tools" database
-
-The programs go in their own empty database. VCAIS stays untouched, and the VCAIS screens never open, so its startup scripts don't run.
-
-1. Start **Domino Designer**. Enter your Notes password if asked.
-2. Choose **File → New → Application**. (In some versions: **File → Application → New**.)
-3. Fill in:
+1. In **Notes**, choose **File → Database → New** *(8.5+: File → Application → New)*.
+2. Fill in:
    - **Server:** `Local`
    - **Title:** `VCAIS Export Tools`
    - **File name:** `vcais-tools.nsf`
    - **Template:** `-Blank-`
-4. Click **OK**.
+3. Click **OK**. An empty database opens. That's expected.
 
-`VCAIS Export Tools` now shows in the **Applications** list on the left side of Designer.
+---
+
+## Step 3: Get the program files
+
+On any computer with internet access:
+
+1. Open each link below. Right-click the page and choose **Save as…**, keeping the file name exactly as shown.
+   - Census: <https://raw.githubusercontent.com/davidbrowning/nsfexport/main/VcaisCensus.java>
+   - Export: <https://raw.githubusercontent.com/davidbrowning/nsfexport/main/VcaisExport.java>
+2. Move both files to the export computer's Desktop, for example with a USB stick.
+
+They are plain text, so you can open them in Notepad.
 
 ---
 
 ## Step 4: Add the census program
 
-1. In the Applications list, click the small arrow beside **VCAIS Export Tools** to open it.
-2. Open **Code**, then click **Agents**.
-3. Click **New Agent** (the button at the top of the agent list).
-4. In the box that opens:
+1. Start **Domino Designer**.
+2. Choose **File → Database → Open** *(8.5+: File → Application → Open)*. Choose **Local** and open **VCAIS Export Tools**.
+3. In the list on the left, open **Shared Code** *(8.5+: **Code**)* and click **Agents**.
+4. Click **New Agent** at the top of the agent list.
+5. Set the agent's properties. In Notes 6/7 a properties box opens. In 8.5+, a dialog opens first, and the rest is in the **Properties** panel below the editor.
    - **Name:** `VCAIS Census`
-   - **Type:** `Java` ← important. The default is *Simple action*.
-   - Click **OK**.
-5. An editor opens with some starting code in it. Click inside the code, press **Ctrl+A** to select it all, then press **Delete**. The editor is now empty.
-6. On the desktop, open `VcaisCensus.java` in **Notepad**. Press **Ctrl+A**, then **Ctrl+C**.
-7. Click back in the empty Designer editor and press **Ctrl+V**.
-8. Set when the agent runs. Look for the **Properties** panel, usually below the editor. If you can't see it, choose **Window → Show Eclipse Views → Properties**. Then, on its **Basics** tab, set:
-   - **Trigger:** `On event` and `Action menu selection`
+   - **Trigger:** `On event`, then `Action menu selection`
    - **Target:** `None`
-9. On the **Security** tab of the same Properties panel (in some versions it's the tab with a key icon), set **Set runtime security level** to **2. Allow restricted operations**. The program needs this to save its report file.
+   - On the **Security** tab (in 6/7, the tab with the key icon): **Set runtime security level** to **2. Allow restricted operations**. The program needs this to save its report.
+   - *(8.5+ only)* **Type:** `Java`
+6. *(Notes 6/7)* Close the properties box. Above the code area, find the drop-down that says **Simple action(s)** and change it to **Java**.
+7. Starting code appears in the code area. Click inside it, press **Ctrl+A** to select it all, then press **Delete**.
+8. Open `VcaisCensus.java` in **Notepad**. Press **Ctrl+A**, then **Ctrl+C**. Click in the empty code area in Designer and press **Ctrl+V**.
+9. Change one setting. Near the top of the code, find:
+
+   ```java
+   private static final String[] EXTRA_FOLDERS = { };
+   ```
+
+   and change it to the folder from Step 1. **Use forward slashes `/`**, not backslashes:
+
+   ```java
+   private static final String[] EXTRA_FOLDERS = { "C:/Users/user/Desktop/Domino/data" };
+   ```
+
+   Replace `user` with the Windows user name in your path. Leave everything else as it is.
 10. Press **Ctrl+S** to save.
 
-**How to tell it worked:** saving shows no red marks, and the **Problems** panel (next to Properties) lists no errors. If there are errors, the paste was usually incomplete. Repeat steps 5–7 and save again.
-
-> The code starts with a few lines of settings in capital letters. Change at most one of them here:
->
-> **If the VCAIS files are outside the Notes data folder** (see Step 2), add their folder to `EXTRA_FOLDERS`. **Use forward slashes `/`**, not backslashes. For example, change
->
-> ```java
-> private static final String[] EXTRA_FOLDERS = { };
-> ```
->
-> to
->
-> ```java
-> private static final String[] EXTRA_FOLDERS = { "C:/Users/user/Desktop/Domino/data" };
-> ```
->
-> Leave everything else as it is.
+**How to tell it worked:** saving shows no error message. In 6/7, errors appear at the bottom of the code area; in 8.5+, they appear in the **Problems** panel. If there is an error, the paste was usually incomplete, or the line in item 9 has a typo. Check the quotes, the braces `{ }` and the semicolon `;`. Then repeat items 7–10.
 
 ---
 
 ## Step 5: Run the census
 
-1. Open the **Notes** client, not Designer.
-2. Choose **File → Open → Lotus Notes Application** (or **File → Application → Open**). Choose **Local** and open **VCAIS Export Tools** (`vcais-tools.nsf`). The database is empty, which is normal.
-3. Choose **Actions → VCAIS Census**.
-4. If an **Execution Security Alert** appears, choose **Execute once**. Notes asks this because the program is new and signed with your ID.
-5. Wait. A small database takes seconds. A large one can take several minutes. Notes may look frozen. **Don't click anything** until it responds again.
-
-   If the VCAIS databases don't appear in the report, they are outside the Notes data folder. Set `EXTRA_FOLDERS` (Step 4) and run the census again.
-6. Open `C:\vcais-export` in File Explorer. You should see a file like `vcais-census-20261201-101500.txt`. Open it in Notepad.
-
-**If no file appears:** see [Troubleshooting](#troubleshooting).
+1. In **Notes**, open **VCAIS Export Tools**: **File → Database → Open** *(8.5+: File → Application → Open)*, choose **Local**, pick it.
+2. Choose **Actions → VCAIS Census**.
+3. If a security alert appears, choose **Execute the action this one time** *(8.5+: Execute once)*. Notes asks because the program is new and signed with your ID.
+4. Wait. Notes may look frozen for a few minutes. **Don't click anything** until it responds again.
+5. On the Desktop, open the new **`vcais-export`** folder. Open the file named like `vcais-census-20261201-101500.txt` in Notepad.
 
 ---
 
 ## Step 6: Read the census
 
-The report lists every database Notes can see. Look for the VCAIS ones. Each section looks like this (numbers made up):
+The report lists every database it found. Look for the VCAIS ones. Each looks like this (numbers made up):
 
 ```
-== C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf
+== C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf.NSF
   title: VCAIS Closed Cases
   size: 812 MB
   your access: Manager
@@ -156,64 +137,63 @@ The report lists every database Notes can see. Look for the VCAIS ones. Each sec
     8089	Defendant
   by status (field: Status):
     ...
+  fields by Form:
+    Case: CaseNumber, Charge, ...
+    Defendant: ...
 ```
 
-Write down:
+Check four things:
 
-1. **The file path after `==`** for each VCAIS database you need, such as `C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf`. It may be a full path like this, or a shorter path such as `VCAIS\ClosedVCAIS.nsf`. You'll type it in Step 7.
+1. **The path after `==`** for each VCAIS database. You'll copy it in Step 7.
 2. **`documents visible to you`.** The export should end with this same number.
-3. **Whether `documents with a Readers field` is above 0.** If it is, read [the Readers section](#if-the-census-mentions-readers-fields) before you export.
+3. **Every kind of record you need is there.** For example, if you need defendant information, look for a Form like `Defendant` under **by Form**, or defendant fields under **fields by Form**. If something is missing, tell your consultant before you export: that data may be kept in another database.
+4. **`documents with a Readers field`.** If this is above 0, read [the Readers section](#if-the-census-mentions-readers-fields) first.
 
-The census holds counts and field names, not case contents. It is safe to send to your consultant.
+If the VCAIS databases aren't in the report at all, check the `EXTRA_FOLDERS` line from Step 4.
+
+The census holds counts and field names, not case contents, so it's safe to send to your consultant.
 
 ---
 
 ## Step 7: Add the export program
 
-Do Step 4 again with these changes:
+Do Step 4 again, with these changes:
 
 - **Name:** `VCAIS Export`
-- Paste from **`VcaisExport.java`** instead.
+- Paste from **`VcaisExport.java`**.
+- Instead of `EXTRA_FOLDERS`, change the `DATABASES` line. Find:
 
-Before saving, change **one line**. Near the top, find:
+  ```java
+  private static final String[] DATABASES = { "ClosedVCAIS.nsf" };
+  ```
 
-```java
-private static final String[] DATABASES = { "ClosedVCAIS.nsf" };
-```
+  Put in the path or paths from the census, with **forward slashes `/`**. Copy the file name exactly, including a doubled extension like `.nsf.NSF`. To export several databases, separate them with commas:
 
-Change the name in quotes to the path from the census. **Use forward slashes `/`.** If the census shows backslashes `\`, change each one to `/`. For example:
+  ```java
+  private static final String[] DATABASES = { "C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf.NSF", "C:/Users/user/Desktop/Domino/data/VCAIS/OpenVCAIS.nsf" };
+  ```
 
-```java
-private static final String[] DATABASES = { "C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf" };
-```
-
-To export more than one database, separate them with commas:
-
-```java
-private static final String[] DATABASES = { "C:/Users/user/Desktop/Domino/data/VCAIS/ClosedVCAIS.nsf", "C:/Users/user/Desktop/Domino/data/VCAIS/Archive2015.nsf" };
-```
-
-Keep the quotes, the braces `{ }` and the semicolon `;` exactly as shown. Then set the trigger, target and security level as in Step 4 and save with **Ctrl+S**. Check that there are no errors.
+Set the trigger, target and security level the same way, save with **Ctrl+S**, and check there are no errors.
 
 ---
 
 ## Step 8: Run the export
 
 1. In **Notes**, with **VCAIS Export Tools** open, choose **Actions → VCAIS Export**.
-2. Choose **Execute once** if asked.
-3. Wait. **A big database can take hours.** Notes will look frozen the whole time. Leave it alone. Don't let the computer sleep. In Windows power settings, set sleep to **Never** for the day.
-4. To check progress, open the newest `vcais-export-*.log` in `C:\vcais-export` with Notepad. It writes a progress line every 500 documents. Close and reopen it to see new lines.
+2. Answer the security alert as in Step 5.
+3. Wait. **A big database can take hours.** Notes will look frozen the whole time. Leave it alone. In Windows power settings, set sleep to **Never** for the day.
+4. To check progress, open the newest `vcais-export-*.log` in the Desktop `vcais-export` folder with Notepad. It adds a line every 500 documents. Close and reopen it to see new lines.
 
-When it finishes, `C:\vcais-export` holds the log, plus one folder per database named `<name>-<time>`:
+When it finishes, the `vcais-export` folder holds the log, plus one folder per database named like `ClosedVCAIS-20261201-103000`:
 
 | File | What it is | Share it? |
 |---|---|---|
 | `vcais-export-<time>.log` | Progress, errors and the final count check | Yes, safe to send |
-| `<name>-<time>\xml\document.0.xml`, `document.1.xml`, … | **Case data**, one file per document, in the same format as the earlier export. Use this for the importer the vendor already built. | **No.** Handle it under your data rules. |
+| `<name>-<time>\xml\document.0.xml`, `document.1.xml`, … | **Case data**, one file per document, in the same format as the earlier export. This is what the new system's importer reads today. | **No.** Handle it under your data rules. |
 | `<name>-<time>\dxl\<name>.dxl` | **Case data**, every document in one file, in Notes' full format (DXL). It includes rich text and attachments, which the older format may leave out. | **No.** Same as above. |
-| `<name>-<time>\manifest.csv` | One row per document: IDs, form, status, which `document.N.xml` it is, and ok or failed for each format | Keep it local |
+| `<name>-<time>\manifest.csv` | One row per document: IDs, form, status, which `document.N.xml` it is, and ok or failed for each format | Keep it with the data |
 
-Both formats are written in the same run. To write only one, set `WRITE_DXL` or `WRITE_LEGACY_XML` to `false` in the settings at the top of the program.
+There's no need to move files out of the Notes program folder as in the earlier steps. Everything is written to the Desktop.
 
 ---
 
@@ -226,16 +206,26 @@ Open the log and go to the bottom. For each database there is one line per forma
 
 The last line of the log is `ALL COMPLETE` or `SOME EXPORTS INCOMPLETE`.
 
-Running the export again is safe. Each run writes new files with a new time in the name and leaves the old ones alone.
+Running the export again is safe. Each run writes a new folder with a new time in its name and leaves the old ones alone.
+
+---
+
+## Step 10: Package and send the output
+
+1. Open the database's output folder, for example `ClosedVCAIS-20261201-103000`.
+2. Right-click it and choose **Send to → Compressed (zipped) folder**. Zip the whole folder so the `xml`, `dxl` and `manifest.csv` stay together.
+3. Move the zip file on through your usual secure route.
+
+The numbers in `document.N.xml` only show the order of this run. They won't match file numbers from an earlier export. Use `manifest.csv` to match each file to the document's permanent ID (its UNID).
 
 ---
 
 ## If the census mentions Readers fields
 
-VCAIS can restrict some documents to certain people. Those documents are **invisible** to anyone not on the list, including these programs, and no program can count what it can't see. If `documents with a Readers field` is above 0:
+VCAIS can restrict some documents to certain people. Anyone not on the list can't see those documents, and that includes these programs. If `documents with a Readers field` is above 0:
 
-1. Run the census with an ID that has full access. Usually that's an administrator ID with **Full Access Administration**, or the ID used to set up VCAIS.
-2. Compare `documents visible to you` across the two IDs. If the numbers differ, run the export with the ID that sees more.
+1. Run the census again with an ID that has full access, such as an administrator ID or the ID used to set up VCAIS.
+2. Compare `documents visible to you` between the two IDs. If the numbers differ, run the export with the ID that sees more.
 
 ---
 
@@ -243,13 +233,13 @@ VCAIS can restrict some documents to certain people. Those documents are **invis
 
 | What you see | What to do |
 |---|---|
-| No **VCAIS Census** under **Actions** | Make sure the **VCAIS Export Tools** database is open, not another one. In Designer, check the agent's trigger is **Action menu selection** and that you saved it. |
-| Red marks or errors when saving | The paste was incomplete or the settings line was mistyped. Paste the whole file again. If you edited `DATABASES`, check the quotes, the forward slashes, `{ }` and `;`. |
-| Nothing happens, no `C:\vcais-export` folder | In Notes, choose **Tools → Show Java Debug Console** (or **File → Tools → Show Java Debug Console**) and run the agent again. Send a photo or a copy of the console text. Also check the runtime security level is **2** (Step 4, item 9). |
-| `could not open` in the census or log | Your ID can't open that database, or the path is wrong. Check the spelling, and that `DATABASES` uses forward slashes `/`. |
-| `Execution Security Alert` every time | Normal. Choose **Execute once**, or **Start trusting the signer** if your policy allows. |
+| The agent isn't in the **Actions** menu | Make sure **VCAIS Export Tools** is the open database. In some versions, agents are listed under **Actions → Other…**. In Designer, check the trigger is **Action menu selection**, and save again. |
+| An error when saving | Paste the whole file again. If you edited a settings line, check the quotes, the forward slashes, `{ }` and `;`. |
+| No `vcais-export` folder on the Desktop | In Notes, choose **File → Tools → Show Java Debug Console**, run the agent again, and send a photo of the console. Also check the runtime security level is **2** (Step 4). |
+| `could not open` in the census or log | The path is wrong, or your ID can't open that database. Copy the path from the census exactly, with forward slashes. |
+| A security alert every time | Normal. Choose to run it this one time, or trust the signer if your policy allows. |
 | Notes says it's not responding | Normal during a long export. Wait. Only restart if the log hasn't added a line in 30 minutes. |
-| The disk filled up | Free space or set `OUTPUT_DIR` to a bigger drive, for example `"D:/vcais-export"`, then run again. |
+| The disk filled up | Free some space, or set `OUTPUT_DIR` to a bigger drive, for example `"D:/vcais-export"`, then run again. |
 
 ---
 
@@ -257,6 +247,6 @@ VCAIS can restrict some documents to certain people. Those documents are **invis
 
 - The census report: `vcais-census-*.txt`
 - The export log: `vcais-export-*.log`
-- A screenshot of any error message
+- A photo or screenshot of any error message
 
-**Do not send** the `.dxl` files or the manifest unless your data-handling rules allow it.
+**Do not send** the `xml` or `dxl` folders, or the manifest, unless your data rules allow it.
