@@ -9,3 +9,24 @@ Your user must have sufficient access in order to create and run what lotus call
 If you can create a new agent in the notes application, you should be able to use these Java programs.
 
 These agent will produce a ".dxl" dump which is at least plain text. 
+
+## Census and export agents (recommended)
+
+**Step-by-step guide: [INSTRUCTIONS.md](INSTRUCTIONS.md).**
+
+The two original agents above export a whole database in one go. That can fail on big databases: the full export is built in memory as one string, the output file is never closed, and errors only show in the Java Debug Console. The two agents below fix that.
+
+1. **`VcaisCensus.java`** is read-only. It lists every database in the local Notes data folder with its document count and your access level. For databases whose name or title contains `vcais`, it also counts documents by Form and by status, counts response, encrypted and Readers-protected documents, and lists the field names on each Form. The report holds no case data, so you can share it while debugging.
+2. **`VcaisExport.java`** exports each database listed in `DATABASES` one document at a time, into its own folder. It writes:
+   - legacy XML: one `document.N.xml` file per document, the same format as the earlier per-document script, for importers built on that
+   - a `.dxl` file with all documents under one root element (Notes' full format)
+   - a manifest CSV with one row per document (note ID, UNID, form, status, result)
+   - a log that ends with `COMPLETE` or `INCOMPLETE`, comparing the exported count with the database's own count
+
+   A document that fails is logged and skipped, and the export carries on.
+
+To use either one: edit the settings at the top of the file. Run the census first to find the database file names and the status field. Then, in Designer, create a Java agent, paste the code in as class `JavaAgent`, set the trigger to "Action menu selection" and the target to "None", and run it from the Actions menu. Output goes to a `vcais-export` folder on the Desktop by default. If the databases are outside the Notes data folder, list their folder in the census's `EXTRA_FOLDERS`.
+
+Both agents use Java 1.3 only (no generics, for-each loops or regular expressions), so they run on Notes 6 and later.
+
+**Readers fields:** Notes hides documents whose Readers field leaves out your ID, and no agent can count what it can't see. If the census reports Readers fields, run it again under an ID with full access and compare the counts.
